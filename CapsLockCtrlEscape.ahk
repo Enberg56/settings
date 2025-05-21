@@ -1,105 +1,135 @@
-g_LastCtrlKeyDownTime := 0
-g_AbortSendEsc := false
-g_ControlRepeatDetected := false
+#Requires AutoHotkey v2.0
 
-*CapsLock::
-    if (g_ControlRepeatDetected)
-    {
+; --- CapsLock to Control and Esc ---
+*Capslock:: {
+    Send("{Blind}{LControl down}")
+}
+*Capslock up:: {
+    Send("{Blind}{LControl up}")
+    if (A_PriorKey = "CapsLock") {
+        Send("{Esc}")
+    }
+}
+
+ToggleCaps() {
+    if GetKeyState("CapsLock", "T") {
+        SetCapsLockState("Off")
+    } else {
+        SetCapsLockState("On")
+    }
+}
+LShift & RShift::ToggleCaps()
+RShift & LShift::ToggleCaps()
+
+; --- SpaceFN Layer ---
+global SpaceHeld := false
+
+Space:: {
+    global SpaceHeld
+    SetTimer(CheckSpaceHold, 200)
+}
+Space Up:: {
+    global SpaceHeld
+    if SpaceHeld {
+        SpaceHeld := false
+    } else {
+        Send("{Space}")
+    }
+    SetTimer(CheckSpaceHold, 0)
+}
+CheckSpaceHold() {
+    global SpaceHeld
+    SpaceHeld := true
+}
+#Space:: {
+    global SpaceHeld
+    SetTimer(CheckSpaceHold, 0)
+    SpaceHeld := false
+    Send("{LWin Down}{Space}{LWin Up}")
+}
+#HotIf SpaceHeld
+h::Send("{Blind}{Left}")
+j::Send("{Blind}{Down}")
+k::Send("{Blind}{Up}")
+l::Send("{Blind}{Right}")
+#HotIf
+
+>+Space::Send("{Up}")
+>+f::Send("{Left}")
+>+j::Send("{Right}")
+
+; --- Autoshift for number row and specified symbols only ---
+
+; Number row
+for k in ["1","2","3","4","5","6","7","8","9","0"] {
+    Hotkey("*" k, AutoShiftHandler)
+}
+
+; Symbol keys using scan codes (US QWERTY)
+; , . / \ ' [ ] = - `
+; SC033 = ,   SC034 = .   SC035 = /   SC02B = \   SC028 = '   SC01A = [   SC01B = ]   SC00D = =   SC00C = -   SC029 = `
+global symbolMap := Map(
+    "SC033", ",",
+    "SC034", ".",
+    "SC035", "/",
+    "SC02B", "\\",
+    "SC028", "'",
+    "SC01A", "[",
+    "SC01B", "]",
+    "SC00D", "=",
+    "SC00C", "-",
+    "SC029", "``" ; double backtick for literal `
+)
+
+for sc, char in symbolMap {
+    Hotkey("*" sc, AutoShiftSymbolHandler)
+}
+
+AutoShiftHandler(*) {
+    ; Don't trigger if Ctrl, Alt, Win, or Shift is held
+    if GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState("RWin", "P") || GetKeyState("Shift", "P") {
+        key := SubStr(A_ThisHotkey, 2)
+        Send("{Blind}" key)
         return
     }
 
-    send,{Ctrl down}
-    g_LastCtrlKeyDownTime := A_TickCount
-    g_AbortSendEsc := false
-    g_ControlRepeatDetected := true
+    key := SubStr(A_ThisHotkey, 2) ; Remove the '*' prefix
 
+    if WaitForKeyRelease(key, 175) {
+        Send("+" key) ; Shifted
+    } else {
+        Send(key)     ; Normal
+    }
     return
+}
 
-*CapsLock Up::
-    send,{Ctrl up}
-    g_ControlRepeatDetected := false
-    if (g_AbortSendEsc)
-    {
+AutoShiftSymbolHandler(*) {
+    if GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState("RWin", "P") || GetKeyState("Shift", "P") {
+        sc := RegExReplace(A_ThisHotkey, "^\*")
+        global symbolMap
+        sendKey := symbolMap[sc]
+        Send("{Blind}" sendKey)
         return
     }
-    current_time := A_TickCount
-    time_elapsed := current_time - g_LastCtrlKeyDownTime
-    if (time_elapsed <= 250)
-    {
-        SendInput {Esc}
+
+    sc := RegExReplace(A_ThisHotkey, "^\*")
+    global symbolMap
+    sendKey := symbolMap[sc]
+
+    if WaitForKeyRelease(sc, 175) {
+        Send("+" sendKey) ; Shifted
+    } else {
+        Send(sendKey)     ; Normal
     }
     return
+}
 
-<+>Shift::CapsLock  ; Double Shift press = Caps Lock
-
-~*^a::
-~*^b::
-~*^c::
-~*^d::
-~*^e::
-~*^f::
-~*^g::
-~*^h::
-~*^i::
-~*^j::
-~*^k::
-~*^l::
-~*^m::
-~*^n::
-~*^o::
-~*^p::
-~*^q::
-~*^r::
-~*^s::
-~*^t::
-~*^u::
-~*^v::
-~*^w::
-~*^x::
-~*^y::
-~*^z::
-~*^1::
-~*^2::
-~*^3::
-~*^4::
-~*^5::
-~*^6::
-~*^7::
-~*^8::
-~*^9::
-~*^0::
-~*^Space::
-~*^Backspace::
-~*^Delete::
-~*^Insert::
-~*^Home::
-~*^End::
-~*^PgUp::
-~*^PgDn::
-~*^Tab::
-~*^Return::
-~*^,::
-~*^.::
-~*^/::
-~*^;::
-~*^'::
-~*^[::
-~*^]::
-~*^\::
-~*^-::
-~*^=::
-~*^`::
-~*^F1::
-~*^F2::
-~*^F3::
-~*^F4::
-~*^F5::
-~*^F6::
-~*^F7::
-~*^F8::
-~*^F9::
-~*^F10::
-~*^F11::
-~*^F12::
-    g_AbortSendEsc := true
-    return
+WaitForKeyRelease(key, timeoutMs) {
+    start := A_TickCount
+    while GetKeyState(key, "P") {
+        if (A_TickCount - start > timeoutMs)
+            return true ; held
+        Sleep(10)
+    }
+    return false ; tapped
+}
