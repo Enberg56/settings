@@ -141,6 +141,8 @@ SendCtrlShiftNum(num) {
     SendEvent(num)            ; Finally press the number
     Sleep(30)
     SendEvent("{Shift up}")    ; release Shift
+    Sleep(30)
+    DoCtrlWin(num)
 }
 
 #b:: {
