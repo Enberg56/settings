@@ -1,0 +1,177 @@
+#Requires AutoHotkey v2.0
+
+; --- CapsLock to Control and Esc ---
+*Capslock:: {
+    Send("{Blind}{LControl down}")
+}
+*Capslock up:: {
+    Send("{Blind}{LControl up}")
+    if (A_PriorKey = "CapsLock") {
+        Send("{Esc}")
+    }
+}
+
+ToggleCaps() {
+    if GetKeyState("CapsLock", "T") {
+        SetCapsLockState("Off")
+    } else {
+        SetCapsLockState("On")
+    }
+}
+LShift & RShift::ToggleCaps()
+RShift & LShift::ToggleCaps()
+
+; Right Alt + h/j/k/l = Arrow keys
+>!h::Send "{Left}" 
+>!j::Send "{Down}"
+>!k::Send "{Up}"
+>!l::Send "{Right}"
+
+; --- Autoshift for number row and specified symbols only ---
+
+; Number row
+for k in ["1","2","3","4","5","6","7","8","9","0"] {
+    Hotkey("*" k, AutoShiftHandler)
+}
+
+; Symbol keys using scan codes (US QWERTY)
+; , . / \ ' [ ] = - `
+; SC033 = ,   SC034 = .   SC035 = /   SC02B = \   SC028 = '   SC01A = [   SC01B = ]   SC00D = =   SC00C = -   SC029 = `
+global symbolMap := Map(
+    "SC033", ",",
+    "SC034", ".",
+    "SC035", "/",
+    "SC02B", "\\",
+    "SC028", "'",
+    "SC01A", "[",
+    "SC01B", "]",
+    "SC00D", "=",
+    "SC00C", "-",
+    "SC029", "``" ; double backtick for literal `
+)
+
+for sc, char in symbolMap {
+    Hotkey("*" sc, AutoShiftSymbolHandler)
+}
+
+AutoShiftHandler(*) {
+    ; Don't trigger if Ctrl, Alt, Win, or Shift is held
+    if GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState("RWin", "P") || GetKeyState("Shift", "P") {
+        key := SubStr(A_ThisHotkey, 2)
+        Send("{Blind}" key)
+        return
+    }
+
+    key := SubStr(A_ThisHotkey, 2) ; Remove the '*' prefix
+
+    if WaitForKeyRelease(key, 175) {
+        Send("+" key) ; Shifted
+    } else {
+        Send(key)     ; Normal
+    }
+    return
+}
+
+AutoShiftSymbolHandler(*) {
+    if GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("LWin", "P") || GetKeyState("RWin", "P") || GetKeyState("Shift", "P") {
+        sc := RegExReplace(A_ThisHotkey, "^\*")
+        global symbolMap
+        sendKey := symbolMap[sc]
+        Send("{Blind}" sendKey)
+        return
+    }
+
+    sc := RegExReplace(A_ThisHotkey, "^\*")
+    global symbolMap
+    sendKey := symbolMap[sc]
+
+    if WaitForKeyRelease(sc, 175) {
+        Send("+" sendKey) ; Shifted
+    } else {
+        Send(sendKey)     ; Normal
+    }
+    return
+}
+
+WaitForKeyRelease(key, timeoutMs) {
+    start := A_TickCount
+    while GetKeyState(key, "P") {
+        if (A_TickCount - start > timeoutMs)
+            return true ; held
+        Sleep(10)
+    }
+    return false ; tapped
+}
+
+; Define Win+1 through Win+4 hotkeys individually
+#1::DoCtrlWin(1)
+#2::DoCtrlWin(2)
+#3::DoCtrlWin(3)
+#4::DoCtrlWin(4)
+
+DoCtrlWin(num) {
+    SendEvent("{Ctrl down}")  ; Hold Ctrl
+    Sleep(30)
+    SendEvent("{LWin down}")  ; Press Win
+    Sleep(30)
+    SendEvent("{LWin up}")    ; Release Win
+    Sleep(30)
+    SendEvent("{Ctrl up}")    ; Release Ctrl
+    Sleep(50)
+    SendEvent(num)            ; Finally press the number
+}
+
+; Win + Ctrl + 1–4
+#^1::SendCtrlShiftNum(1)
+#^2::SendCtrlShiftNum(2)
+#^3::SendCtrlShiftNum(3)
+#^4::SendCtrlShiftNum(4)
+
+SendCtrlShiftNum(num) {
+    SendEvent("{Ctrl down}")  ; Hold Ctrl
+    Sleep(30)
+    SendEvent("{LWin down}")  ; Press Win
+    Sleep(30)
+    SendEvent("{LWin up}")    ; Release Win
+    Sleep(30)
+    SendEvent("{Ctrl up}")    ; Release Ctrl
+    Sleep(50)
+    SendEvent("{Shift down}")  ; hold Shift
+    Sleep(30)
+    SendEvent(num)            ; Finally press the number
+    Sleep(30)
+    SendEvent("{Shift up}")    ; release Shift
+}
+
+#b:: {
+    Run("msedge.exe")
+    Sleep(200)
+    Send("{Esc}")           ; close Widgets / Start if open
+}
+; --- Open teams and outlook(new)
+#t:: {
+    Run("ms-teams:")
+    Run("olk.exe")
+    Sleep(200)
+    Send("{Esc}")           ; close Widgets / Start if open
+}
+
+#w:: {
+    SendEvent("!{F4}")      ; Alt + F4
+    Sleep(200)
+    Send("{Esc}")           ; close Widgets / Start if open
+
+}
+
+; --- Tap vs hold for the Left Windows key ---
+~LWin::
+{
+    start := A_TickCount
+    KeyWait("LWin")  ; wait until the key is released
+
+    if (A_TickCount - start < 100) {
+        Send("{Esc}")          ; closes Start if it appeared
+        Sleep(300)
+        Send("!{Space}")       ; Alt+Space as your tap action
+    }
+}
